@@ -5,5 +5,6 @@
                  [ring/ring-devel "1.6.3"]
                  [cheshire "5.8.1"]
                  [clojure.java-time "0.3.2"]]
-  :ring {:handler fvms.core/handler}
+  :ring {:handler fvms.core/app
+         :open-browser? false}
   :plugins [[lein-ring "0.12.5"]])
