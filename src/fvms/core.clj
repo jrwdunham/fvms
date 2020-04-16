@@ -100,7 +100,10 @@
 (defmethod router :v1-leads-create.js
   [{:keys [body] :as r}]
   (let [id (format "fake_tripleseat_lead_id_%s"
-                   (-> body w/keywordize-keys :vb_lead_id))]
+                   (-> body
+                       w/keywordize-keys
+                       :lead
+                       :additional_information))]
     (swap! inquiries assoc id (assoc body :lead-id id))
     {:status 201 :body id}))
 
