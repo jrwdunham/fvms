@@ -104,8 +104,12 @@
                        w/keywordize-keys
                        :lead
                        :additional_information))]
+    (printf "Setting a new lead at ID %s.\n" id)
     (swap! inquiries assoc id (assoc body :lead-id id))
-    {:status 201 :body id}))
+    {:status 201
+     :body
+     {:success_message "Lead submitted successfully!"
+      :lead_id id}}))
 
 (defn json-encode
   [handler]
