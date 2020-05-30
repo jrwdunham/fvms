@@ -4,9 +4,15 @@
   Constructs a simple in-memory state."
   (:require [clojure.pprint :as pprint]
             [clojure.string :as str]
-            [clojure.tools.logging :as log]
             [clojure.walk :as w]
-            [cheshire.core :as ch]))
+            [cheshire.core :as ch]
+            [taoensso.timbre.appenders.core :as appenders]
+            [taoensso.timbre :as log]))
+
+(log/merge-config!
+ {:appenders
+  {:spit (appenders/spit-appender {:fname "/var/log/fvms.log"})
+   :println {:enabled? false}}})
 
 (def inquiries (atom {}))
 
@@ -29,7 +35,9 @@
   (let [resource-id (->> uri (drop (count resource-prefix)) (apply str))]
     (if (empty? (str/trim resource-id))
       nil
-      resource-id)))
+      (try
+        (Integer. resource-id)
+        (catch Exception _ nil)))))
 
 (def inquiries-prefix "/inquiries/")
 
@@ -97,15 +105,43 @@
     (swap! inquiries assoc id (assoc body :inquiry-id id))
     {:status 201 :body id}))
 
+(def uuid-regex
+  (re-pattern
+   (str "(?s)"  ;; "dotall mode" switch to match newlines with .
+        "^.*("
+        "[a-f0-9]{8}"
+        "-"
+        "[a-f0-9]{4}"
+        "-"
+        "[a-f0-9]{4}"
+        "-"
+        "[a-f0-9]{4}"
+        "-"
+        "[a-f0-9]{12}"
+        ").*$")))
+
+(defn extract-regex [s]
+  (str/replace s uuid-regex "$1"))
+
+(defn construct-lead-id-from-create-lead-payload
+  [payload]
+  (format "fake_tripleseat_lead_id_%s"
+          (-> payload
+              w/keywordize-keys
+              :lead
+              :additional_information
+              extract-regex)))
+
+(defn get-next-lead-id
+  [db]
+  (let [last-id (->> db sort last first)]
+    (or (and last-id (inc last-id)) 1)))
+
 (defmethod router :v1-leads-create.js
-  [{:keys [body] :as r}]
-  (let [id (format "fake_tripleseat_lead_id_%s"
-                   (-> body
-                       w/keywordize-keys
-                       :lead
-                       :additional_information))]
-    (printf "Setting a new lead at ID %s.\n" id)
-    (swap! inquiries assoc id (assoc body :lead-id id))
+  [{payload :body :as r}]
+  (let [id (get-next-lead-id @inquiries)]
+    (log/debugf "Setting a new lead at ID %s.\n" id)
+    (swap! inquiries assoc id (assoc payload :lead-id id))
     {:status 201
      :body
      {:success_message "Lead submitted successfully!"
